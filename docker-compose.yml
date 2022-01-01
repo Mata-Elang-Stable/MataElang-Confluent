@@ -4,7 +4,7 @@ services:
   connect-add:
     image: curlimages/curl:7.80.0
     command: "curl -s -X POST -H 'Content-Type: application/json' --data @connector.json http://connect:8083/connectors"
-    container_name: connect-add-connector
+    container_name: connect-add
     depends_on:
       - broker
       - zookeeper 
