@@ -1,22 +1,22 @@
-version: "3.2"
+version: '2'
 
-services: 
+services:
   connect-add:
     image: curlimages/curl:7.80.0
     command: "curl -s -X POST -H 'Content-Type: application/json' --data @connector.json http://connect:8083/connectors"
     container_name: connect-add
     depends_on:
       - broker
-      - zookeeper 
+      - zookeeper
       - connect
       - schema-registry
       - control-center
-      - ksql-server
-    volumes: 
+      - ksqldb-server
+    volumes:
       - ./connector.json:/connector.json
 
   zookeeper:
-    image: confluentinc/cp-zookeeper:5.4.6
+    image: confluentinc/cp-zookeeper:5.5.7
     hostname: zookeeper
     container_name: zookeeper
     ports:
@@ -24,15 +24,16 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-    
+
   broker:
-    image: confluentinc/cp-server:5.4.6
+    image: confluentinc/cp-server:5.5.7
     hostname: broker
     container_name: broker
     depends_on:
       - zookeeper
     ports:
       - "9092:9092"
+      - "9101:9101"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
@@ -42,6 +43,10 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://schema-registry:8081
       CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: broker:29092
       CONFLUENT_METRICS_REPORTER_ZOOKEEPER_CONNECT: zookeeper:2181
       CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
@@ -49,7 +54,7 @@ services:
       CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
 
   schema-registry:
-    image: confluentinc/cp-schema-registry:5.4.6
+    image: confluentinc/cp-schema-registry:5.5.7
     hostname: schema-registry
     container_name: schema-registry
     depends_on:
@@ -62,7 +67,7 @@ services:
       SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: 'zookeeper:2181'
 
   connect:
-    image: confluentinc/cp-kafka-connect-base:5.4.6
+    image: cnfldemos/cp-server-connect-datagen:0.3.2-5.5.0
     hostname: connect
     container_name: connect
     depends_on:
@@ -73,30 +78,34 @@ services:
       - "8083:8083"
     environment:
       CONNECT_BOOTSTRAP_SERVERS: 'broker:29092'
-      CONNECT_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: compose-connect-group
+      CONNECT_CONFIG_STORAGE_TOPIC: docker-connect-configs
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
+      CONNECT_OFFSET_STORAGE_TOPIC: docker-connect-offsets
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_TOPIC: docker-connect-status
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
       CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
-      CONNECT_REST_PORT: 8083
-      CONNECT_GROUP_ID: default
-      CONNECT_REST_ADVERTISED_HOST_NAME: connect
-      CONNECT_CONFIG_STORAGE_TOPIC: default.config
-      CONNECT_OFFSET_STORAGE_TOPIC: default.offsets
-      CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
-      CONNECT_STATUS_STORAGE_TOPIC: default.status
       CONNECT_KEY_CONVERTER: io.confluent.connect.avro.AvroConverter
       CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
       CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
       CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
-      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      # CLASSPATH required due to CC-2422
+      CLASSPATH: /usr/share/java/monitoring-interceptors/monitoring-interceptors-5.5.7.jar
+      CONNECT_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
+      CONNECT_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
       CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
       CONNECT_LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR
-    volumes: 
-      - ./kafka-connect-mqtt-1.1.0-1.1.0-all.jar:/usr/share/java/kafka-connect-mqtt/kafka-connect-mqtt-1.1.0-1.1.0-all.jar
+    volumes:
+      - ./kafka-connect-mqtt-2.1.3-2.5.0-all.jar:/usr/share/java/kafka-connect-mqtt/kafka-connect-mqtt-2.1.3-2.5.0-all.jar
 
   control-center:
-    image: confluentinc/cp-enterprise-control-center:5.4.6
+    image: confluentinc/cp-enterprise-control-center:5.5.7
     hostname: control-center
     container_name: control-center
     depends_on:
@@ -104,15 +113,15 @@ services:
       - broker
       - schema-registry
       - connect
-      - ksql-server
+      - ksqldb-server
     ports:
       - "9021:9021"
     environment:
       CONTROL_CENTER_BOOTSTRAP_SERVERS: 'broker:29092'
       CONTROL_CENTER_ZOOKEEPER_CONNECT: 'zookeeper:2181'
       CONTROL_CENTER_CONNECT_CLUSTER: 'connect:8083'
-      CONTROL_CENTER_KSQL_URL: "http://ksql-server:8088"
-      CONTROL_CENTER_KSQL_ADVERTISED_URL: "http://localhost:8088"
+      CONTROL_CENTER_KSQL_KSQLDB1_URL: "http://ksqldb-server:8088"
+      CONTROL_CENTER_KSQL_KSQLDB1_ADVERTISED_URL: "http://localhost:8088"
       CONTROL_CENTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
       CONTROL_CENTER_REPLICATION_FACTOR: 1
       CONTROL_CENTER_INTERNAL_TOPICS_PARTITIONS: 1
@@ -120,11 +129,10 @@ services:
       CONFLUENT_METRICS_TOPIC_REPLICATION: 1
       PORT: 9021
 
-  ksql-server:
-    image: confluentinc/cp-ksql-server:5.4.6
-    hostname: ksql-server
-    container_name: ksql-server
-    restart: always
+  ksqldb-server:
+    image: confluentinc/cp-ksqldb-server:5.5.7
+    hostname: ksqldb-server
+    container_name: ksqldb-server
     depends_on:
       - broker
       - connect
@@ -132,28 +140,30 @@ services:
       - "8088:8088"
     environment:
       KSQL_CONFIG_DIR: "/etc/ksql"
-      KSQL_LOG4J_OPTS: "-Dlog4j.configuration=file:/etc/ksql/log4j-rolling.properties"
       KSQL_BOOTSTRAP_SERVERS: "broker:29092"
-      KSQL_HOST_NAME: ksql-server
+      KSQL_HOST_NAME: ksqldb-server
       KSQL_LISTENERS: "http://0.0.0.0:8088"
       KSQL_CACHE_MAX_BYTES_BUFFERING: 0
       KSQL_KSQL_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
       KSQL_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
       KSQL_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
+      KSQL_KSQL_CONNECT_URL: "http://connect:8083"
+      KSQL_KSQL_LOGGING_PROCESSING_TOPIC_REPLICATION_FACTOR: 1
+      KSQL_KSQL_LOGGING_PROCESSING_TOPIC_AUTO_CREATE: 'true'
+      KSQL_KSQL_LOGGING_PROCESSING_STREAM_AUTO_CREATE: 'true'
 
-  ksql-cli:
-    image: confluentinc/cp-ksql-cli:5.4.6
-    container_name: ksql-cli
+  ksqldb-cli:
+    image: confluentinc/cp-ksqldb-cli:5.5.7
+    container_name: ksqldb-cli
     depends_on:
       - broker
       - connect
-      - ksql-server
+      - ksqldb-server
     entrypoint: /bin/sh
     tty: true
 
   rest-proxy:
-    image: confluentinc/cp-kafka-rest:5.4.6
-    hostname: rest-proxy
+    image: confluentinc/cp-kafka-rest:5.5.7
     depends_on:
       - zookeeper
       - broker
