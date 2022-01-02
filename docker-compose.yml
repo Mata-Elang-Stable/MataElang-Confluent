@@ -16,7 +16,7 @@ services:
       - ./connector.json:/connector.json
 
   zookeeper:
-    image: confluentinc/cp-zookeeper:6.2.2
+    image: confluentinc/cp-zookeeper:5.4.6
     hostname: zookeeper
     container_name: zookeeper
     ports:
@@ -26,7 +26,7 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     
   broker:
-    image: confluentinc/cp-server:6.2.2
+    image: confluentinc/cp-server:5.4.6
     hostname: broker
     container_name: broker
     depends_on:
@@ -49,7 +49,7 @@ services:
       CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
 
   schema-registry:
-    image: confluentinc/cp-schema-registry:6.2.2
+    image: confluentinc/cp-schema-registry:5.4.6
     hostname: schema-registry
     container_name: schema-registry
     depends_on:
@@ -62,7 +62,7 @@ services:
       SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: 'zookeeper:2181'
 
   connect:
-    image: confluentinc/cp-kafka-connect-base:6.2.2
+    image: confluentinc/cp-kafka-connect-base:5.4.6
     hostname: connect
     container_name: connect
     depends_on:
@@ -96,7 +96,7 @@ services:
       - ./kafka-connect-mqtt-1.1.0-1.1.0-all.jar:/usr/share/java/kafka-connect-mqtt/kafka-connect-mqtt-1.1.0-1.1.0-all.jar
 
   control-center:
-    image: confluentinc/cp-enterprise-control-center:6.2.2
+    image: confluentinc/cp-enterprise-control-center:5.4.6
     hostname: control-center
     container_name: control-center
     depends_on:
@@ -152,7 +152,7 @@ services:
     tty: true
 
   rest-proxy:
-    image: confluentinc/cp-kafka-rest:6.2.2
+    image: confluentinc/cp-kafka-rest:5.4.6
     hostname: rest-proxy
     depends_on:
       - zookeeper
